@@ -1,0 +1,24 @@
+.device-details {
+    background-color: rgba(15, 23, 42, 0.96);
+    border-radius: 18px;
+    padding: 18px 20px;
+    border: 1px solid #1f2937;
+    font-size: 17px;
+}
+
+.device-details h2 {
+    margin-top: 0;
+    margin-bottom: 4px;
+    font-size: 22px;
+}
+
+.device-env {
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-size: 14px;
+    color: #9ca3af;
+}
+
+.device-details p {
+    margin: 6px 0;
+}

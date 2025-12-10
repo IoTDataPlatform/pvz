@@ -1,0 +1,302 @@
+services:
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  mqtt-emulator:
+    build:
+      context: ./mqtt-emulator
+      dockerfile: Dockerfile
+    container_name: mqtt-emulator
+    depends_on:
+      mqtt-broker:
+        condition: service_started
+    environment:
+      MQTT_HOST: mqtt-broker
+      MQTT_PORT: 1883
+      ENVIRONMENTS: "prod"
+      TENANTS: "tenant-1"
+      DEVICES: "device-001,device-002,device-003,device-004,device-005"
+      BACKFILL_FROM_YEAR: 2025
+      BACKFILL_INTERVAL_SEC: 3600
+      REALTIME_INTERVAL_SEC: 30
+      DRYNESS_LEVEL: 40
+    restart: unless-stopped
+
+  mqttx-web:
+    image: emqx/mqttx-web:latest
+    container_name: mqttx-web
+    ports:
+      - "8086:80"
+    restart: unless-stopped
+
+  kafka:
+    user: "0:0"
+    image: confluentinc/cp-kafka:8.1.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_NODE_ID: "1"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9094,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://127.0.0.1:9094"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
+      KAFKA_NUM_PARTITIONS: "1"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+
+      KAFKA_MESSAGE_MAX_BYTES: "10485760"
+      KAFKA_REPLICA_FETCH_MAX_BYTES: "10485760"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/9094'" ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  connect:
+    image: confluentinc/cp-kafka-connect:8.1.0
+    container_name: kafka-connect
+    hostname: kafka-connect
+    depends_on:
+      - kafka
+      - redis
+      - kafka-schema-registry
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: "kafka:9092"
+      CONNECT_REST_PORT: 8083
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+      CONNECT_GROUP_ID: "connect-cluster"
+
+      CONNECT_CONFIG_STORAGE_TOPIC: "__connect-configs"
+      CONNECT_OFFSET_STORAGE_TOPIC: "__connect-offsets"
+      CONNECT_STATUS_STORAGE_TOPIC: "__connect-status"
+
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://kafka-schema-registry:8081"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_INTERNAL_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+
+      CONNECT_PLUGIN_PATH: "/usr/share/confluent-hub-components"
+      CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./connect-plugins:/usr/share/confluent-hub-components
+    restart: unless-stopped
+
+  kafka-schema-registry:
+    image: confluentinc/cp-schema-registry:8.1.0
+    container_name: kafka-schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka:9092"
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
+      SCHEMA_REGISTRY_HOST_NAME: "kafka-schema-registry"
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8081/subjects >/dev/null" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  kafka-ui:
+    image: kafbat/kafka-ui:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-schema-registry:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: "http://kafka-schema-registry:8081"
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: "connect-local"
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: "http://connect:8083"
+    ports:
+      - "8080:8080"
+
+  flink-jobmanager:
+    image: flink:1.19.1-java17
+    container_name: flink-jobmanager
+    command: jobmanager
+    ports:
+      - "8180:8081"
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        rest.port: 8081
+        taskmanager.numberOfTaskSlots: 4
+        parallelism.default: 1
+    volumes:
+      - ./flink-lib/flink-connector-kafka-3.2.0-1.19.jar:/opt/flink/lib/flink-connector-kafka-3.2.0-1.19.jar:ro
+      - ./flink-lib/flink-avro-1.19.1.jar:/opt/flink/lib/flink-avro-1.19.1.jar:ro
+      - ./flink-lib/flink-avro-confluent-registry-1.19.1.jar:/opt/flink/lib/flink-avro-confluent-registry-1.19.1.jar:ro
+      - ./flink-lib/avro-1.11.3.jar:/opt/flink/lib/avro-1.11.3.jar:ro
+      - ./flink-lib/kafka-schema-registry-client-7.6.1.jar:/opt/flink/lib/kafka-schema-registry-client-7.6.1.jar:ro
+      - ./flink-lib/kafka-avro-serializer-7.6.1.jar:/opt/flink/lib/kafka-avro-serializer-7.6.1.jar:ro
+      - ./flink-lib/kafka-schema-serializer-7.6.1.jar:/opt/flink/lib/kafka-schema-serializer-7.6.1.jar:ro
+      - ./flink-lib/common-config-7.6.1.jar:/opt/flink/lib/common-config-7.6.1.jar:ro
+      - ./flink-lib/common-utils-7.6.1.jar:/opt/flink/lib/common-utils-7.6.1.jar:ro
+      - ./flink-lib/jackson-annotations-2.17.2.jar:/opt/flink/lib/jackson-annotations-2.17.2.jar:ro
+      - ./flink-lib/jackson-core-2.17.2.jar:/opt/flink/lib/jackson-core-2.17.2.jar:ro
+      - ./flink-lib/jackson-databind-2.17.2.jar:/opt/flink/lib/jackson-databind-2.17.2.jar:ro
+      - ./flink-lib/okhttp-3.14.9.jar:/opt/flink/lib/okhttp-3.14.9.jar:ro
+      - ./flink-lib/okio-1.17.2.jar:/opt/flink/lib/okio-1.17.2.jar:ro
+      - ./flink-lib/guava-32.1.2-jre.jar:/opt/flink/lib/guava-32.1.2-jre.jar:ro
+      - ./flink-lib/kafka-clients-3.7.1.jar:/opt/flink/lib/kafka-clients-3.7.1.jar:ro
+      - ./flink-lib/flink-connector-jdbc-3.2.0-1.19.jar:/opt/flink/lib/flink-connector-jdbc-3.2.0-1.19.jar:ro
+      - ./flink-lib/postgresql-42.7.4.jar:/opt/flink/lib/postgresql-42.7.4.jar:ro
+      - ./flink-sql/mqtt_enriched_temporal_join.sql:/opt/flink/sql/mqtt_enriched_temporal_join.sql:ro
+      - ./flink-sql/mqtt_resent_summary.sql:/opt/flink/sql/mqtt_resent_summary.sql:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-schema-registry:
+        condition: service_healthy
+      postgres-mqtt:
+        condition: service_healthy
+
+  flink-taskmanager:
+    image: flink:1.19.1-java17
+    container_name: flink-taskmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 4
+    volumes:
+      - ./flink-lib/flink-connector-kafka-3.2.0-1.19.jar:/opt/flink/lib/flink-connector-kafka-3.2.0-1.19.jar:ro
+      - ./flink-lib/flink-avro-1.19.1.jar:/opt/flink/lib/flink-avro-1.19.1.jar:ro
+      - ./flink-lib/flink-avro-confluent-registry-1.19.1.jar:/opt/flink/lib/flink-avro-confluent-registry-1.19.1.jar:ro
+      - ./flink-lib/avro-1.11.3.jar:/opt/flink/lib/avro-1.11.3.jar:ro
+      - ./flink-lib/kafka-schema-registry-client-7.6.1.jar:/opt/flink/lib/kafka-schema-registry-client-7.6.1.jar:ro
+      - ./flink-lib/kafka-avro-serializer-7.6.1.jar:/opt/flink/lib/kafka-avro-serializer-7.6.1.jar:ro
+      - ./flink-lib/kafka-schema-serializer-7.6.1.jar:/opt/flink/lib/kafka-schema-serializer-7.6.1.jar:ro
+      - ./flink-lib/common-config-7.6.1.jar:/opt/flink/lib/common-config-7.6.1.jar:ro
+      - ./flink-lib/common-utils-7.6.1.jar:/opt/flink/lib/common-utils-7.6.1.jar:ro
+      - ./flink-lib/jackson-annotations-2.17.2.jar:/opt/flink/lib/jackson-annotations-2.17.2.jar:ro
+      - ./flink-lib/jackson-core-2.17.2.jar:/opt/flink/lib/jackson-core-2.17.2.jar:ro
+      - ./flink-lib/jackson-databind-2.17.2.jar:/opt/flink/lib/jackson-databind-2.17.2.jar:ro
+      - ./flink-lib/okhttp-3.14.9.jar:/opt/flink/lib/okhttp-3.14.9.jar:ro
+      - ./flink-lib/okio-1.17.2.jar:/opt/flink/lib/okio-1.17.2.jar:ro
+      - ./flink-lib/guava-32.1.2-jre.jar:/opt/flink/lib/guava-32.1.2-jre.jar:ro
+      - ./flink-lib/kafka-clients-3.7.1.jar:/opt/flink/lib/kafka-clients-3.7.1.jar:ro
+      - ./flink-lib/flink-connector-jdbc-3.2.0-1.19.jar:/opt/flink/lib/flink-connector-jdbc-3.2.0-1.19.jar:ro
+      - ./flink-lib/postgresql-42.7.4.jar:/opt/flink/lib/postgresql-42.7.4.jar:ro
+    depends_on:
+      - flink-jobmanager
+
+  postgres-mqtt:
+    image: postgis/postgis:18-3.6
+    container_name: postgres-mqtt
+    environment:
+      POSTGRES_DB: mqtt
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5430:5432"
+    volumes:
+      - postgres-data-rt:/var/lib/postgresql-mqtt
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U app -d mqtt" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    image: redis:7.4
+    container_name: redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pvz-backend:
+    build:
+      context: ../pvz-backend
+      dockerfile: Dockerfile
+    container_name: pvz-backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres-mqtt:
+        condition: service_healthy
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-mqtt:5432/mqtt
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "true"
+    ports:
+      - "8085:8080"
+    restart: unless-stopped
+
+  pvz-web:
+    build:
+      context: ../pvz-web
+      dockerfile: Dockerfile
+    container_name: pvz-web
+    depends_on:
+      pvz-backend:
+        condition: service_started
+    environment:
+      VITE_API_BASE_URL: "http://pvz-backend:8080/api"
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+volumes:
+  kafka-data:
+  postgres-data:
+  postgres-data-rt:
+  minio-data:
+  pg-data:

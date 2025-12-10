@@ -1,0 +1,2 @@
+rootProject.name = 'pvz_iot_data_platform'
+include 'pvz-backend'

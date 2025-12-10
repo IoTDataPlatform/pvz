@@ -1,0 +1,76 @@
+.App {
+    display: flex;
+    justify-content: center;
+}
+
+a .leaflet-attribution-flag {
+    display: none !important;
+}
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    color: #e5e7eb;
+    font-size: 18px;
+}
+
+.app-header {
+    padding: 14px 22px;
+    background: linear-gradient(90deg, #111827, #020617);
+    border-bottom: 1px solid #1f2937;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+}
+
+.app-main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+
+/* карта поменьше, панель шире */
+.map-panel {
+    flex: 0.9;
+    position: relative;
+    min-width: 0;
+}
+
+.side-panel {
+    flex: 1.4;
+    min-width: 340px;
+    max-width: 560px;
+    padding: 18px 20px;
+    background: radial-gradient(circle at top, #111827, #020617);
+    border-left: 1px solid #1f2937;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.app-footer {
+    padding: 8px 20px;
+    font-size: 14px;
+    color: #9ca3af;
+    background-color: #020617;
+    border-top: 1px solid #1f2937;
+}
+
+.status {
+    position: absolute;
+    z-index: 1000;
+    top: 12px;
+    left: 12px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background-color: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(4px);
+    font-size: 15px;
+}
+
+.status-error {
+    color: #fecaca;
+}

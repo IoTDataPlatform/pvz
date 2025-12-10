@@ -1,0 +1,26 @@
+{
+  "name": "mqtt-enriched-redis-sink",
+  "config": {
+    "connector.class": "com.redis.kafka.connect.RedisSinkConnector",
+    "tasks.max": "1",
+    "topics": "mqtt_enriched,mqtt_recent_summary",
+
+    "redis.uri": "redis://redis:6379",
+    "redis.type": "HASH",
+    "redis.keyspace": "",
+    "redis.key.ttl": "600",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "key.converter.schemas.enable": "false",
+
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://kafka-schema-registry:8081",
+    "value.converter.schemas.enable": "true",
+
+    "transforms": "ValueToKey,ExtractFieldKey",
+    "transforms.ValueToKey.type": "org.apache.kafka.connect.transforms.ValueToKey",
+    "transforms.ValueToKey.fields": "redis_key",
+    "transforms.ExtractFieldKey.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
+    "transforms.ExtractFieldKey.field": "redis_key"
+  }
+}

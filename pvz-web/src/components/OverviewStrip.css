@@ -1,0 +1,42 @@
+.overview-strip {
+    background: radial-gradient(circle at top, #0f172a, #020617);
+    border-bottom: 1px solid #1f2937;
+    padding: 20px 28px;
+    font-size: 24px;
+    color: #e5e7eb;
+}
+
+.overview-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: center;
+}
+
+.overview-main {
+    font-weight: 900;
+    margin-right: 14px;
+    font-size: 30px;
+}
+
+.overview-pill {
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 2px solid #4b5563;
+    font-size: 26px;
+}
+
+.overview-pill-online {
+    border-color: #22c55e;
+    color: #bbf7d0;
+}
+
+.overview-pill-offline {
+    border-color: #f97373;
+    color: #fecaca;
+}
+
+.overview-error {
+    color: #fecaca;
+    font-size: 28px;
+}
