@@ -4,7 +4,7 @@ import type {
     DeviceMetricsResponse,
     MetricsBucket,
     DeviceMetricsPoint,
-    RecentSummary,
+    RecentSummary, DroughtSummary, DroughtStreak,
 } from './types';
 
 export async function fetchDevices(
@@ -100,3 +100,39 @@ export async function fetchRecentSummary(
 
     return res.json();
 }
+
+export async function fetchDroughtSummary(
+    envName: string,
+    tenantId: string
+): Promise<DroughtSummary> {
+    const res = await fetch(
+        `${env.apiBaseUrl}/${encodeURIComponent(envName)}/${encodeURIComponent(
+            tenantId
+        )}/devices/summary/drought`
+    );
+
+    if (!res.ok) {
+        throw new Error(`Failed to load drought summary: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function fetchDeviceDroughtStreak(
+    envName: string,
+    tenantId: string,
+    deviceId: string
+): Promise<DroughtStreak> {
+    const res = await fetch(
+        `${env.apiBaseUrl}/${encodeURIComponent(envName)}/${encodeURIComponent(
+            tenantId
+        )}/devices/${encodeURIComponent(deviceId)}/drought`
+    );
+
+    if (!res.ok) {
+        throw new Error(`Failed to load drought streak for ${deviceId}: ${res.status}`);
+    }
+
+    return res.json();
+}
+

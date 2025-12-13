@@ -72,11 +72,28 @@ public class DeviceController {
     @GetMapping("/recent")
     public ResponseEntity<List<RecentDeviceSnapshotResponse>> getRecentSnapshots(
             @PathVariable String env,
-            @PathVariable String tenantId,
-            @RequestParam(name = "windowSeconds", defaultValue = "600") int windowSeconds
+            @PathVariable String tenantId
     ) {
         List<RecentDeviceSnapshotResponse> response =
-                deviceService.getRecentSnapshots(env, tenantId, windowSeconds);
+                deviceService.getRecentSnapshots(env, tenantId);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{deviceId}/drought")
+    public ResponseEntity<DroughtStreakResponse> getDroughtStreak(
+            @PathVariable String env,
+            @PathVariable String tenantId,
+            @PathVariable String deviceId
+    ) {
+        DroughtStreakResponse resp = deviceService.getDroughtStreak(env, tenantId, deviceId);
+        return resp == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(resp);
+    }
+
+    @GetMapping("/summary/drought")
+    public ResponseEntity<DroughtSummaryResponse> getDroughtSummary(
+            @PathVariable String env,
+            @PathVariable String tenantId
+    ) {
+        return ResponseEntity.ok(deviceService.getDroughtSummary(env, tenantId));
     }
 }

@@ -8,7 +8,7 @@ import OverviewStrip from './components/OverviewStrip';
 import './App.css';
 
 const DEFAULT_ENV = 'prod';
-const DEFAULT_TENANT = 'tenant-a';
+const DEFAULT_TENANT = 'tenant-1';
 
 function App() {
     const [devices, setDevices] = useState<DeviceState[]>([]);

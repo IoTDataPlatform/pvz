@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { fetchRecentSummary } from '../api/client';
-import type { RecentSummary } from '../api/types';
+import {useEffect, useState} from 'react';
+import {fetchDroughtSummary, fetchRecentSummary} from '../api/client';
+import type {DroughtSummary, RecentSummary} from '../api/types';
 import './OverviewStrip.css';
 
 type Props = {
@@ -13,10 +13,52 @@ function formatNumber(value: number | null, digits = 1): string {
     return value.toFixed(digits);
 }
 
-const OverviewStrip = ({ envName, tenantId }: Props) => {
+const OverviewStrip = ({envName, tenantId}: Props) => {
     const [summary, setSummary] = useState<RecentSummary | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [drought, setDrought] = useState<DroughtSummary | null>(null);
+
+    const DROUGHT_DAYS_RED = 10;
+
+    function getDroughtLevel(drought: DroughtSummary | null): 'ok' | 'warn' | 'bad' {
+        if (!drought || drought.devicesInDrought <= 0) return 'ok';
+        const maxDays = drought.maxStreakDays ?? 0;
+        if (maxDays >= DROUGHT_DAYS_RED) return 'bad';
+        return 'warn';
+    }
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function load() {
+            try {
+                setLoading(true);
+                setError(null);
+
+                const [summaryData, droughtData] = await Promise.all([
+                    fetchRecentSummary(envName, tenantId),
+                    fetchDroughtSummary(envName, tenantId),
+                ]);
+
+                if (!cancelled) {
+                    setSummary(summaryData);
+                    setDrought(droughtData);
+                }
+            } catch (e: any) {
+                if (!cancelled) setError(e?.message ?? 'Ошибка загрузки обзора');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        }
+
+        load();
+        const id = setInterval(load, 30_000);
+        return () => {
+            cancelled = true;
+            clearInterval(id);
+        };
+    }, [envName, tenantId]);
 
     useEffect(() => {
         let cancelled = false;
@@ -74,6 +116,20 @@ const OverviewStrip = ({ envName, tenantId }: Props) => {
                     <span className="overview-pill">
                         ср. H {formatNumber(summary.avgHumidity, 0)}%
                     </span>
+                    {(() => {
+                        const level = getDroughtLevel(drought);
+                        const droughtPillClass = `overview-pill overview-pill-drought overview-pill-drought-${level}`;
+                        return (
+                            <>
+                                <span className={droughtPillClass}>
+                                    в засухе {drought?.devicesInDrought ?? '—'}
+                                </span>
+                                <span className={droughtPillClass}>
+                                    макс засуха {formatNumber(drought?.maxStreakDays ?? null, 2)}д
+                                </span>
+                            </>
+                        );
+                    })()}
                 </div>
             )}
         </div>

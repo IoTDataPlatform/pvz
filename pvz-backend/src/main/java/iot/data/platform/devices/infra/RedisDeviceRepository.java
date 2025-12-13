@@ -1,5 +1,7 @@
 package iot.data.platform.devices.infra;
 
+import iot.data.platform.devices.api.DroughtStreakResponse;
+import iot.data.platform.devices.api.DroughtSummaryResponse;
 import iot.data.platform.devices.api.RecentSummaryResponse;
 import iot.data.platform.devices.core.DeviceState;
 import org.springframework.dao.DataAccessException;
@@ -61,24 +63,37 @@ public class RedisDeviceRepository {
         } catch (DataAccessException e) {
             return null;
         }
-        if (map.isEmpty()) {
-            return null;
-        }
+        if (map.isEmpty()) return null;
+
         return new DeviceState(
                 deviceId,
                 env,
                 tenantId,
-                map.get("lat"),
-                map.get("lon"),
-                map.get("h"),
-                map.get("t"),
-                map.get("ts_ht"),
-                map.get("rssi"),
-                map.get("snr"),
-                map.get("bat"),
-                map.get("online"),
-                map.get("ts_state")
+                parseDoubleOrNull(map.get("lat")),
+                parseDoubleOrNull(map.get("lon")),
+                parseDoubleOrNull(map.get("h")),
+                parseDoubleOrNull(map.get("t")),
+                parseLongOrNull(map.get("ts_ht")),
+                parseLongOrNull(map.get("rssi")),
+                parseDoubleOrNull(map.get("snr")),
+                parseDoubleOrNull(map.get("bat")),
+                parseBoolOrNull(map.get("online")),
+                parseLongOrNull(map.get("ts_state"))
         );
+    }
+
+    private Long parseLongOrNull(String v) {
+        if (v == null || v.isBlank()) return null;
+        try { return Long.parseLong(v); } catch (NumberFormatException e) { return null; }
+    }
+
+    private Boolean parseBoolOrNull(String v) {
+        if (v == null || v.isBlank()) return null;
+        return switch (v.toLowerCase()) {
+            case "1","true","yes","on" -> true;
+            case "0","false","no","off" -> false;
+            default -> null;
+        };
     }
 
     public RecentSummaryResponse findRecentSummary(String env, String tenantId) {
@@ -101,6 +116,73 @@ public class RedisDeviceRepository {
                 parseDoubleOrNull(map.get("avgTemp")),
                 parseDoubleOrNull(map.get("avgHumidity"))
         );
+    }
+
+    public DroughtStreakResponse findDroughtStreak(String env, String tenantId, String deviceId) {
+        String key = RedisKeys.deviceHumidityLowStreak(env, tenantId, deviceId);
+
+        Map<String, String> map;
+        try {
+            map = hashOps.entries(key);
+        } catch (DataAccessException e) {
+            return null;
+        }
+        if (map.isEmpty()) return null;
+
+        Double threshold = parseDoubleOrNull(map.get("threshold"));
+        Long lastTs = parseLongOrNull(map.get("last_ts"));
+        Long lastOkTs = parseLongOrNull(map.get("last_ok_ts"));
+        Double streakDays = parseDoubleOrNull(map.get("streak_days"));
+        Double lastH = parseDoubleOrNull(map.get("last_h"));
+
+        return new DroughtStreakResponse(
+                env, tenantId, deviceId,
+                threshold, lastTs, lastOkTs,
+                streakDays, lastH
+        );
+    }
+
+    public DroughtSummaryResponse findDroughtSummary(String env, String tenantId) {
+        Set<String> keys = redisTemplate.keys(RedisKeys.deviceHumidityLowStreakPattern(env, tenantId));
+        if (keys.isEmpty()) {
+            return new DroughtSummaryResponse(env, tenantId, null, 0, 0.0, null);
+        }
+
+        int inDrought = 0;
+        double maxDays = 0.0;
+        String maxDeviceId = null;
+        Double threshold = null;
+
+        for (String key : keys) {
+            Map<String, String> map;
+            try {
+                map = hashOps.entries(key);
+            } catch (DataAccessException e) {
+                continue;
+            }
+            if (map.isEmpty()) continue;
+
+            if (threshold == null) threshold = parseDoubleOrNull(map.get("threshold"));
+
+            Double days = parseDoubleOrNull(map.get("streak_days"));
+            if (days == null) continue;
+
+            if (days > 0) inDrought++;
+
+            if (days > maxDays) {
+                maxDays = days;
+                maxDeviceId = extractDeviceIdFromStreakKey(key);
+            }
+        }
+
+        return new DroughtSummaryResponse(env, tenantId, threshold, inDrought, maxDays, maxDeviceId);
+    }
+
+    private String extractDeviceIdFromStreakKey(String streakKey) {
+        int deviceIdx = streakKey.indexOf(":device:");
+        int tailIdx = streakKey.lastIndexOf(":humidity_low_streak");
+        if (deviceIdx < 0 || tailIdx < 0 || tailIdx <= deviceIdx + 8) return null;
+        return streakKey.substring(deviceIdx + 8, tailIdx);
     }
 
     private RecentSummaryResponse emptySummary(String env, String tenantId) {

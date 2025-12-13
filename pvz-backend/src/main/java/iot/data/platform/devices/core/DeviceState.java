@@ -4,15 +4,15 @@ public record DeviceState(
         String deviceId,
         String env,
         String tenantId,
-        String lat,
-        String lon,
-        String h,
-        String t,
-        String tsHt,
-        String rssi,
-        String snr,
-        String bat,
-        String online,
-        String tsState
+        Double lat,
+        Double lon,
+        Double h,
+        Double t,
+        Long tsHt,
+        Long rssi,
+        Double snr,
+        Double bat,
+        Boolean online,
+        Long tsState
 ) {
 }

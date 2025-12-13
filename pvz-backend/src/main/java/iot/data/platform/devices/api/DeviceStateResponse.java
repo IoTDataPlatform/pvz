@@ -22,52 +22,16 @@ public record DeviceStateResponse(
                 state.deviceId(),
                 state.env(),
                 state.tenantId(),
-                parseDouble(state.lat()),
-                parseDouble(state.lon()),
-                parseDouble(state.h()),
-                parseDouble(state.t()),
-                parseLong(state.tsHt()),
-                parseInt(state.rssi()),
-                parseDouble(state.snr()),
-                parseDouble(state.bat()),
-                parseBool(state.online()),
-                parseLong(state.tsState())
+                state.lat(),
+                state.lon(),
+                state.h(),
+                state.t(),
+                state.tsHt(),
+                state.rssi() == null ? null : state.rssi().intValue(),
+                state.snr(),
+                state.bat(),
+                state.online(),
+                state.tsState()
         );
-    }
-
-    private static Double parseDouble(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            return Double.parseDouble(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Long parseLong(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            return Long.parseLong(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Integer parseInt(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Boolean parseBool(String value) {
-        if (value == null || value.isBlank()) return null;
-        return switch (value.toLowerCase()) {
-            case "1", "true", "yes", "on" -> true;
-            case "0", "false", "no", "off" -> false;
-            default -> null;
-        };
     }
 }

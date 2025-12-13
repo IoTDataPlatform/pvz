@@ -67,16 +67,16 @@ CREATE TABLE mqtt_enriched
     d         STRING,
     env       STRING,
     tenant    STRING,
-    lat       STRING,
-    lon       STRING,
-    h         STRING,
-    t         STRING,
-    ts_ht     STRING,
-    rssi      STRING,
-    snr       STRING,
-    bat       STRING,
+    lat DOUBLE,
+    lon DOUBLE,
+    h DOUBLE,
+    t DOUBLE,
+    ts_ht     BIGINT,
+    rssi      BIGINT,
+    snr DOUBLE,
+    bat DOUBLE,
     online    BOOLEAN,
-    ts_state  STRING,
+    ts_state  BIGINT,
     redis_key STRING
 ) WITH (
       'connector' = 'kafka',
@@ -109,27 +109,25 @@ SET;
 INSERT INTO mqtt_enriched
 SELECT h.d                                                AS d,
        'prod'                                             AS env,
-       'tenant-a'                                         AS tenant,
-       CAST(l.lat AS STRING)                              AS lat,
-       CAST(l.lon AS STRING)                              AS lon,
-       CAST(h.h AS STRING)                                AS h,
-       CAST(h.t AS STRING)                                AS t,
-       CAST(h.ts AS STRING)                               AS ts_ht,
-       CAST(s.rssi AS STRING)                             AS rssi,
-       CAST(s.snr AS STRING)                              AS snr,
-       CAST(s.bat AS STRING)                              AS bat,
+       'tenant-1'                                         AS tenant,
+       l.lat                                              AS lat,
+       l.lon                                              AS lon,
+       h.h                                                AS h,
+       h.t                                                AS t,
+       h.ts                                               AS ts_ht,
+       s.rssi                                             AS rssi,
+       s.snr                                              AS snr,
+       s.bat                                              AS bat,
        s.online                                           AS online,
-       CAST(s.ts AS STRING)                               AS ts_state,
-       CONCAT('pvz:prod:tenant-a:device:', h.d, ':state') AS redis_key
+       s.ts                                               AS ts_state,
+       CONCAT('pvz:prod:tenant-1:device:', h.d, ':state') AS redis_key
 FROM mqtt_humidity h
-         LEFT JOIN mqtt_location_dim FOR SYSTEM_TIME AS OF h.rt AS l
-                   ON h.d = l.d
-         LEFT JOIN mqtt_state_dim FOR SYSTEM_TIME AS OF h.rt AS s
-                   ON h.d = s.d;
+         LEFT JOIN mqtt_location_dim FOR SYSTEM_TIME AS OF h.rt AS l ON h.d = l.d
+         LEFT JOIN mqtt_state_dim FOR SYSTEM_TIME AS OF h.rt AS s ON h.d = s.d;
 
 INSERT INTO device_measurements
 SELECT 'prod'                                          AS env,
-       'tenant-a'                                      AS tenant_id,
+       'tenant-1'                                      AS tenant_id,
        h.d                                             AS device_id,
        CAST(TO_TIMESTAMP_LTZ(h.ts, 3) AS TIMESTAMP(3)) AS ts,
        h.t                                             AS temperature,
@@ -139,7 +137,6 @@ SELECT 'prod'                                          AS env,
            ELSE 'ERROR'
            END                                         AS status
 FROM mqtt_humidity h
-         LEFT JOIN mqtt_state_dim FOR SYSTEM_TIME AS OF h.rt AS s
-                   ON h.d = s.d;
+         LEFT JOIN mqtt_state_dim FOR SYSTEM_TIME AS OF h.rt AS s ON h.d = s.d;
 
 END;

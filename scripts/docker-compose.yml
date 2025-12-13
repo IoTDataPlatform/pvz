@@ -23,10 +23,10 @@ services:
       ENVIRONMENTS: "prod"
       TENANTS: "tenant-1"
       DEVICES: "device-001,device-002,device-003,device-004,device-005"
-      BACKFILL_FROM_YEAR: 2025
+      BACKFILL_FROM_YEAR: 2021
       BACKFILL_INTERVAL_SEC: 3600
       REALTIME_INTERVAL_SEC: 30
-      DRYNESS_LEVEL: 40
+      DRYNESS_LEVEL: 36
     restart: unless-stopped
 
   mqttx-web:

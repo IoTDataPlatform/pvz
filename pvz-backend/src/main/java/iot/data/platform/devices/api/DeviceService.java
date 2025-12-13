@@ -28,80 +28,42 @@ public class DeviceService {
         return redisDeviceRepository.findRecentSummary(env, tenantId);
     }
 
+    public DroughtStreakResponse getDroughtStreak(String env, String tenantId, String deviceId) {
+        return redisDeviceRepository.findDroughtStreak(env, tenantId, deviceId);
+    }
+
+    public DroughtSummaryResponse getDroughtSummary(String env, String tenantId) {
+        return redisDeviceRepository.findDroughtSummary(env, tenantId);
+    }
+
     public List<RecentDeviceSnapshotResponse> getRecentSnapshots(
             String env,
-            String tenantId,
-            int windowSeconds
+            String tenantId
     ) {
         List<DeviceState> states = redisDeviceRepository.findAllByTenant(env, tenantId);
-        Instant now = Instant.now();
-        long threshold = now.getEpochSecond() - windowSeconds;
 
         List<RecentDeviceSnapshotResponse> result = new ArrayList<>();
 
         for (DeviceState s : states) {
-            Long tsHt = parseLong(s.tsHt());
-            Long tsState = parseLong(s.tsState());
-            long lastSeen = 0L;
-            if (tsHt != null) {
-                lastSeen = tsHt;
-            }
-            if (tsState != null) {
-                lastSeen = Math.max(lastSeen, tsState);
-            }
+            Long tsHt = s.tsHt();
+            Long tsState = s.tsState();
 
-            if (lastSeen < threshold) {
-                continue;
-            }
+            long lastSeen = 0L;
+            if (tsHt != null) lastSeen = tsHt;
+            if (tsState != null) lastSeen = Math.max(lastSeen, tsState);
 
             result.add(new RecentDeviceSnapshotResponse(
                     s.deviceId(),
                     lastSeen,
-                    parseDouble(s.t()),
-                    parseDouble(s.h()),
-                    parseBool(s.online()),
-                    parseInt(s.rssi()),
-                    parseDouble(s.snr()),
-                    parseDouble(s.bat())
+                    s.t(),
+                    s.h(),
+                    s.online(),
+                    s.rssi() == null ? null : s.rssi().intValue(),
+                    s.snr(),
+                    s.bat()
             ));
         }
 
         return result;
-    }
-
-    private static Double parseDouble(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            return Double.parseDouble(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Long parseLong(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            return Long.parseLong(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Integer parseInt(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Boolean parseBool(String value) {
-        if (value == null || value.isBlank()) return null;
-        return switch (value.toLowerCase()) {
-            case "1", "true", "yes", "on" -> true;
-            case "0", "false", "no", "off" -> false;
-            default -> null;
-        };
     }
 }

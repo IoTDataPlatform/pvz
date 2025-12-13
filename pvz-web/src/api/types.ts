@@ -39,3 +39,24 @@ export interface RecentSummary {
     avgTemp: number | null;
     avgHumidity: number | null;
 }
+
+export interface DroughtSummary {
+    env: string;
+    tenantId: string;
+    threshold: number | null;
+    devicesInDrought: number;
+    maxStreakDays: number | null;
+    maxDeviceId: string | null;
+}
+
+export interface DroughtStreak {
+    env: string;
+    tenantId: string;
+    deviceId: string;
+    threshold: number | null;
+    lastTs: number | null;
+    lastOkTs: number | null;
+    streakDays: number | null;
+    lastH: number | null;
+}
+

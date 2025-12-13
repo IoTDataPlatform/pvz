@@ -39,7 +39,8 @@ kafka-topics-init:
         mqtt-sensors-source-up mqtt-sensors-source-down \
         mqtt-postgres-sink-up mqtt-postgres-sink-down \
         mqtt-enriched-redis-sink-up mqtt-enriched-redis-sink-down \
-        flink-job-up flink-job-down flink-job-list
+        flink-job-up flink-job-down flink-job-list \
+        mqtt-recent-summary-redis-sink-up mqtt-recent-summary-redis-sink-down
 
 connector-up:
 	@curl -sS -X POST "$(CONNECT_URL)/connectors" \
@@ -73,6 +74,12 @@ mqtt-enriched-redis-sink-up:
 mqtt-enriched-redis-sink-down:
 	$(MAKE) connector-down CONFIG=./configs/mqtt-enriched-redis-sink.json
 
+mqtt-recent-summary-redis-sink-up:
+	$(MAKE) connector-up CONFIG=./configs/mqtt-recent-summary-redis-sink.json
+
+mqtt-recent-summary-redis-sink-down:
+	$(MAKE) connector-down CONFIG=./configs/mqtt-recent-summary-redis-sink.json
+
 connect-connectors:
 	@curl -sS "$(CONNECT_URL)/connectors" \
 	  -o /dev/null \
@@ -103,3 +110,51 @@ flink-jobs-down:
 
 flink-job-list:
 	@$(FLINK_BIN)/flink list
+
+.PHONY: stack-up stack-down emulator-up emulator-down \
+        platform-start platform-stop connectors-up connectors-down
+
+stack-up:
+	@docker compose up -d --build
+	@echo "Base containers up."
+
+stack-down:
+	@docker compose down
+	@echo "Stack down."
+
+emulator-up:
+	@docker compose up -d mqtt-emulator
+	@echo "MQTT emulator started."
+
+emulator-down:
+	@docker compose down mqtt-emulator || true
+	@echo "MQTT emulator stopped."
+
+connectors-up:
+	@$(MAKE) mqtt-sensors-source-up
+	@$(MAKE) mqtt-postgres-sink-up
+	@$(MAKE) mqtt-enriched-redis-sink-up
+	@$(MAKE) mqtt-recent-summary-redis-sink-up
+	@echo "All connectors up."
+
+connectors-down:
+	@$(MAKE) mqtt-recent-summary-redis-sink-down || true
+	@$(MAKE) mqtt-enriched-redis-sink-down || true
+	@$(MAKE) mqtt-postgres-sink-down || true
+	@$(MAKE) mqtt-sensors-source-down || true
+	@echo "All connectors down."
+
+platform-start: stack-up
+	@$(MAKE) emulator-down
+	@$(MAKE) flink-jobs-up
+	@$(MAKE) connectors-up
+	@$(MAKE) emulator-up
+	@echo "Platform started (jobs+connectors ready, emulator started last)."
+
+platform-stop:
+	@$(MAKE) emulator-down
+	@$(MAKE) connectors-down
+	@$(MAKE) flink-jobs-down || true
+	@$(MAKE) stack-down
+	@echo "Platform stopped."
+

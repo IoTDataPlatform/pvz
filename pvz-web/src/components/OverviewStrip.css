@@ -40,3 +40,18 @@
     color: #fecaca;
     font-size: 28px;
 }
+
+.overview-pill-drought-ok {
+    border-color: #22c55e;
+    color: #bbf7d0;
+}
+
+.overview-pill-drought-warn {
+    border-color: #f59e0b;
+    color: #fde68a;
+}
+
+.overview-pill-drought-bad {
+    border-color: #ef4444;
+    color: #fecaca;
+}
